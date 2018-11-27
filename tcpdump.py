@@ -3,6 +3,7 @@
 
 import gc
 import json
+import sys
 
 from multiprocessing import Process
 from multiprocessing import Lock
@@ -18,6 +19,9 @@ DEFAULT_SERVER_PORT = '5201'
 
 TASK_STATUS_LOG_TEMPLATE = 'Task "%s, rtt=%s, loss=%s", status=%s'
 RUNTIME_LOG_NAME_TEMPLATE = 'runtime-%s-rtt%s-loss%s.log'
+
+IPERF_FILE_NAME_TEMPLATE = './%s/iperf3-%s-rtt%s-loss%s-1g-%s.json'
+TCPDUMP_FILE_NAME_TEMPLATE = './%s/tcpdump-%s-rtt%s-loss%s-1g-%s.log'
 
 
 def extract(line):
@@ -39,7 +43,7 @@ def extract(line):
     line_split = line.split(' ')
 
     # 使用 -1 来避免取到末尾的逗号
-    seq = line_split[8][0:-1]
+    seq = line_split[8][:-1]
     # 获取数据包长度
     size = int(line_split[-1])
     # 获取发送方的 ip 地址与端口号
@@ -254,8 +258,7 @@ def get_packets(lines, stats, role, algorithm, rtt, loss, local_logger):
 
     # 加载位于 iperf 的记录当中的带宽, 测试时间, 以及重传
     if role == 'sender':
-        iperf_template = './%s/iperf3-%s-rtt%s-loss%s-1g-%s.json'
-        iperf_file_name = iperf_template % (algorithm, algorithm, rtt, loss, nth_run)
+        iperf_file_name = IPERF_FILE_NAME_TEMPLATE % (algorithm, algorithm, rtt, loss, nth_run)
         local_logger.info('Loading iperf file: "' + iperf_file_name + '"')
         json_object = json.load(open(iperf_file_name, 'r'))
         stats[key]['iperf_duration'] = json_object['end']['sum_sent']['seconds']
@@ -286,7 +289,7 @@ def get_packets(lines, stats, role, algorithm, rtt, loss, local_logger):
 
             # 加载下一次测试的 iperf 数据
             if role == 'sender':
-                iperf_file_name = iperf_template % (algorithm, algorithm, rtt, loss, nth_run)
+                iperf_file_name = IPERF_FILE_NAME_TEMPLATE % (algorithm, algorithm, rtt, loss, nth_run)
                 local_logger.info('Loading iperf file: "' + iperf_file_name + '"')
                 json_object = json.load(open(iperf_file_name, 'r'))
                 stats[key]['iperf_duration'] = json_object['end']['sum_sent']['seconds']
@@ -493,10 +496,8 @@ def run(algorithm, rtts, loss, read_lock, name):
 
                 local_logger.info(TASK_STATUS_LOG_TEMPLATE % (a, r, l, 'STARTED'))
 
-                template = './%s/tcpdump-%s-rtt%s-loss%s-1g-%s.log'
-                # template = './tcpdump-%s-rtt%s-loss%s-1g-%s.log'
-                sender_file_name = template % (a, a, r, l, 'sender')
-                receiver_file_name = template % (a, a, r, l, 'receiver')
+                sender_file_name = TCPDUMP_FILE_NAME_TEMPLATE % (a, a, r, l, 'sender')
+                receiver_file_name = TCPDUMP_FILE_NAME_TEMPLATE % (a, a, r, l, 'receiver')
 
                 # 初始化数据集
                 sender_stats = {}
@@ -504,9 +505,9 @@ def run(algorithm, rtts, loss, read_lock, name):
 
                 read_lock.acquire()
                 local_logger.info('Lock Acquired, loading tcpdump files.')
-                local_logger.info('Loading: ' + template % (a, a, r, l, 'sender'))
+                local_logger.info('Loading: ' + TCPDUMP_FILE_NAME_TEMPLATE % (a, a, r, l, 'sender'))
                 sender_lines = storm.read_text_file(sender_file_name)
-                local_logger.info('Loading: ' + template % (a, a, r, l, 'receiver'))
+                local_logger.info('Loading: ' + TCPDUMP_FILE_NAME_TEMPLATE % (a, a, r, l, 'receiver'))
                 receiver_lines = storm.read_text_file(receiver_file_name)
                 local_logger.info('Finished loading, lock released.')
                 read_lock.release()
@@ -527,19 +528,19 @@ def run(algorithm, rtts, loss, read_lock, name):
 def main():
 
     # 测试设置
-    algorithm = ['bbr']
-    rtt_1 = ['12']
+    algorithm = ['cubic']
     # rtt_1 = ['12', '30', '60']
     # rtt_2 = ['100', '200', '300']
     # rtt_3 = ['200', '300']
-    # loss = ['0.05', '0.2', '0.4', '0.6', '0.8']
-    loss = ['0.05']
+    rtt = ['30']
+    loss = ['1']
+    # loss = ['0.01', '0.05', '0.1', '0.2', '0.4', '0.6', '0.8', '1', '3', '5']
 
     read_lock = Lock()
 
-    task_1 = Process(target=run, args=(algorithm, rtt_1, loss, read_lock, 'process-1', ))
-    # task_2 = Process(target=run, args=(algorithm, rtt_2, loss, read_lock, 'process-2', ))
-    # task_3 = Process(target=run, args=(algorithm, rtt_3, loss, read_lock, 'process-3', ))
+    task_1 = Process(target=run, args=(algorithm, rtt, loss, read_lock, algorithm[0] + '-process-1', ))
+    # task_2 = Process(target=run, args=(algorithm, rtt_2, loss, read_lock, algorithm[0] + '-process-2', ))
+    # task_3 = Process(target=run, args=(algorithm, rtt_3, loss, read_lock, algorithm[0] + '-process-3', ))
 
     task_1.start()
     # task_2.start()
