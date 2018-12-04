@@ -244,7 +244,7 @@ def get_iperf_result(data_set, algorithm, rtt, loss, nth_run):
     data_set['iperf_retransmission'] = \
         json_object['end']['sum_sent']['retransmits']
     data_set['iperf_throughput'] = \
-        json_object['end']['sum_sent']['bits_per_second'] / storm.G
+        json_object['end']['sum_sent']['bits_per_second'] / storm.M
 
 
 def get_packets(lines, stats, role, description, local_logger):
@@ -666,13 +666,14 @@ def run(algorithm, rtts, loss, read_lock, name):
 def main():
 
     # 测试设置
-    algorithm = ['bbr']
+    algorithm = ['illinois']
 
-    rtt_1 = ['12', '30', '60']
-    rtt_2 = ['100', '200', '300']
-    # rtt_3 = ['200', '300']
+    rtt_1 = ['12', '30']
+    rtt_2 = ['60', '100']
+    rtt_3 = ['200', '300']
 
-    loss = ['0.01', '0.05', '0.1', '0.2', '0.4', '0.6', '0.8', '1', '3', '5']
+    loss = ['0.01', '0.05', '0.1', '0.2', '0.4',
+            '0.6', '0.8', '1.0', '3.0', '5.0']
 
     read_lock = Lock()
 
@@ -680,16 +681,16 @@ def main():
         algorithm, rtt_1, loss, read_lock, algorithm[0] + '-process-1', ))
     task_2 = Process(target=run, args=(
         algorithm, rtt_2, loss, read_lock, algorithm[0] + '-process-2', ))
-    # task_3 = Process(target=run, args=(
-    #     algorithm, rtt_3, loss, read_lock, algorithm[0] + '-process-3', ))
+    task_3 = Process(target=run, args=(
+        algorithm, rtt_3, loss, read_lock, algorithm[0] + '-process-3', ))
 
     task_1.start()
     task_2.start()
-    # task_3.start()
+    task_3.start()
 
     task_1.join()
     task_2.join()
-    # task_3.join()
+    task_3.join()
 
 
 if __name__ == '__main__':
