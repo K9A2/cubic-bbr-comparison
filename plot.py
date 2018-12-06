@@ -14,6 +14,7 @@ loss_label = ['0.01', '0.05', '0.1', '0.2', '0.4',
 
 font_size = 30
 
+color_scheme = 'BrBGi'
 
 def plot_bar_chart():
 
@@ -96,7 +97,8 @@ def plot_heatmap(data, size, cbar_label, margin, range, fmt):
     sns.heatmap(data, yticklabels=rtt_label, xticklabels=loss_label,
                 vmin=range['min'], vmax=range['max'],
                 annot=True, annot_kws={'size': font_size},
-                cmap='YlGnBu', cbar_kws={'label': cbar_label},
+                cmap=color_scheme,
+                cbar_kws={'label': cbar_label},
                 fmt=fmt)
 
     plt.xticks(rotation=45, fontsize=font_size)
@@ -191,8 +193,8 @@ def plot_heatmap_retr_per_loss():
 
 def main():
 
-#     plot_bar_chart()
-#     plot_throughput_heatmap()
+    # plot_bar_chart()
+    # plot_throughput_heatmap()
     # plot_heatmap_retr_per_packet()
     plot_heatmap_retr_per_loss()
 
