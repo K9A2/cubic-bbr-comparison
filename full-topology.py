@@ -15,10 +15,11 @@ import libstorm as storm
 
 
 loss = [0.01, 0.05, 0.10, 0.20, 0.40, 0.60, 0.80, 1.00, 3.00, 5.00]
-rtt = [12, 30, 60, 100, 200, 300]
-# rtt = [12, 30, 60]
+# rtt = [12, 30, 60, 100, 200, 300]
+rtt = [100, 200, 300]
 
 algorithm = 'illinois'
+
 tcpdump_command_template = \
     'tcpdump -i %s-eth0 tcp 1> ./tcpdump-%s-rtt%s-loss%s-1g-%s.log &'
 shell_command_template = './run.sh -c %s -a %s -r %s -l %s 1> %s &'
