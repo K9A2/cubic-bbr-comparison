@@ -17,7 +17,7 @@ log() {
   echo $(date "+%Y-%m-%d %H:%M:%S") ${1}
 }
 
-while getopts 'c:a:i:r:l:' OPT; do
+while getopts 'c:a:i:r:l:s:e:' OPT; do
   case $OPT in
     c) cc="$OPTARG";;
     a) address="$OPTARG";;
@@ -26,17 +26,18 @@ while getopts 'c:a:i:r:l:' OPT; do
     # d) duration="$OPTARG";;
     r) rtt="$OPTARG";;
     l) loss="$OPTARG";;
-    # s) start="$OPTARG";;
-    # e) end="$OPTARG";;
+    s) start="$OPTARG";;
+    e) end="$OPTARG";;
     ?) usage;;
   esac
 done
 
-for((i=1;i<=10;i++));
+for((i=${start};i<${end};i++));
 do
   log "${cc} ${rtt}ms ${loss}% round: ${i}"
   echo ${cc} > /proc/sys/net/ipv4/tcp_congestion_control
-  iperf3 -c ${address} -n 1G -J 1> iperf3-${cc}-rtt${rtt}-loss${loss}-1g-${i}.json
+  iperf3 -c ${address} -t 600 -J 1> \
+    iperf3-${cc}-rtt${rtt}-loss${loss}-600s-${i}.json
   # give time to both side to fully finish the test
   sleep 60s
 done
