@@ -14,9 +14,12 @@ iperf_file_name_template = \
 
 
 def usage():
+    print 'Use this script to check whether all tests return a JSON file'
+    print ''
     print 'Usage: file-validate.py [-a|--algorithm <algorithm>]'
     print '       file-validate.py [-m|--max-count <count>]'
     print '       file-validate.py [-h|--help]'
+    print ''
     print 'You need to specify both <algorithm> and <count> in command line'
 
 
