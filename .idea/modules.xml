@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/TAnalyer/TAnalyer.iml" filepath="$PROJECT_DIR$/TAnalyer/TAnalyer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/python-analyzer/python-analyzer.iml" filepath="$PROJECT_DIR$/python-analyzer/python-analyzer.iml" />
+    </modules>
+  </component>
+</project>
