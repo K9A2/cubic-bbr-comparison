@@ -26,6 +26,7 @@ def usage():
     print 'Usage wireless-topology [-a|--algorithm <algorithm>]'
     print '                        [-f|--frequency <frequency>]'
     print '                        [-m|--max-count <max-count>]'
+    print '                        [-g|--group <group>]'
     print '                        [-h|--help]'
     print ''
     print 'You need to specify all arguments in command line'
@@ -34,8 +35,9 @@ def usage():
 def parse_arguments(argv, description):
     try:
         opts, args = \
-            getopt.getopt(argv, 'ha:f:m:',
-                          ['help', 'algorithm=', 'frequency=', 'max-count='])
+            getopt.getopt(
+                argv, 'ha:f:m:g:',
+                ['help', 'algorithm=', 'frequency=', 'max-count=', 'group='])
     except getopt.GetoptError:
         print 'Error: Wrong argument(s)'
         usage()
@@ -50,6 +52,8 @@ def parse_arguments(argv, description):
             description['frequency'] = arg
         if opt in ('-m', '--max-count'):
             description['max-count'] = int(arg)
+        if opt in ('-g', '--group'):
+            description['group'] = int(arg)
 
 
 def main(argv):
@@ -59,10 +63,12 @@ def main(argv):
     algorithm = description['algorithm']
     frequency = description['frequency']
     max_count = description['max-count']
+    group = description['group']
 
     storm.log('algorithm: %s' % description['algorithm'])
     storm.log('frequency: %s' % description['frequency'])
     storm.log('max-count: %s' % str(description['max-count']))
+    storm.log('group:     %s' % str(description['group']))
 
     net = Mininet_wifi(controller=Controller, accessPoint=OVSKernelAP)
 
@@ -80,8 +86,17 @@ def main(argv):
         description['mode'] = 'ac'
         description['channel'] = '36'
 
+    # Calculate the start index of each group
+    group_start = []
+    step = max_count / group
+    i = 0
+    while i < max_count:
+        group_start.append(i)
+        i += step
+    storm.log('group_start: ' + str(group_start))
+
     # Add nodes in this topology
-    for i in range(0, max_count):
+    for i in range(0, len(group_start)):
         station_name = 'sta' + str(i)
         ap_name = 'ap' + str(i)
         host_name = 'h' + str(i)
@@ -96,7 +111,7 @@ def main(argv):
     net.configureWifiNodes()
 
     # Add links between nodes
-    for i in range(0, max_count):
+    for i in range(0, len(group_start)):
         station = net.get('sta' + str(i))
         ap = net.get('ap' + str(i))
         host = net.get('h' + str(i))
@@ -106,13 +121,13 @@ def main(argv):
     net.build()
 
     # Start the APs
-    for i in range(0, max_count):
+    for i in range(0, len(group_start)):
         ap_name = 'ap' + str(i)
         ap = net.get(ap_name)
         ap.start([c1])
 
     # Run the test (see ./run.sh for details)
-    for i in range(0, max_count):
+    for i in range(0, len(group_start)):
         sender_name = 'sta' + str(i)
         receiver_name = 'h' + str(i)
         sender = net.get(sender_name)
@@ -124,12 +139,13 @@ def main(argv):
         # Start the iperf3 deamon at receiver
         receiver.cmd('iperf3 -s -D')
 
-        storm.log('Run the test 3s later: %s-%s' % (str(i), str(i + 1)))
+        storm.log('Run the test 3s later: %s-%s' %
+            (str(group_start[i]), str(group_start[i] + step - 1)))
         time.sleep(3)
 
         # Launch the test
         shell_command = shell_command_template % (
-            algorithm, receiver.IP(), frequency, str(i), str(i + 1),
+            algorithm, receiver.IP(), frequency, str(group_start[i]), str(group_start[i] + step),
             'runtime-' + algorithm + '-' + frequency + '-' + str(i) + '.log'
         )
         storm.log(shell_command)
