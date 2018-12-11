@@ -25,7 +25,7 @@ while getopts 'c:a:f:s:e:' OPT; do
     # The address of iperf3 server
     a) address="$OPTARG";;
     # Use the value of frequency to set the log file name
-    f) frequency="$OPTARG"
+    f) frequency="$OPTARG";;
     # The beginning of this evaluation group
     s) start="$OPTARG";;
     # The end of this evaluation group

@@ -71,11 +71,11 @@ def main(argv):
     c1.start()
 
     # Setting the network mode and channel according to the frequency specified
-    if frequency == '2g':
+    if frequency == '2.4g':
         # Default channel 1 for 2.4GHz frequency (mode=802.11n)
         description['mode'] = 'n'
         description['channel'] = '1'
-    else:
+    elif frequency == '5g':
         # Default channel 36 for 5GHz frequency (mode=802.11ac)
         description['mode'] = 'ac'
         description['channel'] = '36'
