@@ -2,13 +2,11 @@
 # coding=utf-8
 
 import getopt
-import os
 import sys
 import time
 
-from mininet.log import info
-from mininet.log import setLogLevel
 from mininet.node import Controller
+# from mininet.node import RemoteController
 
 from mn_wifi.cli import CLI_wifi
 from mn_wifi.net import Mininet_wifi
@@ -102,9 +100,10 @@ def main(argv):
         host_name = 'h' + str(i)
 
         station = net.addStation(station_name, range=100,
-            position='%s, 10, 0' % str(i * 50 + 20))
-        ap = net.addAccessPoint(ap_name, ssid=ap_name,
-            mode=description['mode'], channel=description['channel'],
+                                 position='%s, 10, 0' % str(i * 50 + 20))
+        ap = net.addAccessPoint(
+            ap_name, ssid=ap_name, mode=description['mode'],
+            channel=description['channel'],
             position='%s, 20, 0' % str(i * 50 + 20), range=20)
         host = net.addHost(host_name)
 
@@ -137,15 +136,17 @@ def main(argv):
         receiver.cmd('ethtool -K ' + receiver_name + '-eth0 tso off')
 
         # Start the iperf3 deamon at receiver
-        receiver.cmd('iperf3 -s -D')
+        receiver.cmd('iperf3 -s -D -A %s' % str(i))
+        storm.log('iperf3 -s -D -A %s' % str(i))
 
         storm.log('Run the test 3s later: %s-%s' %
-            (str(group_start[i]), str(group_start[i] + step - 1)))
+                  (str(group_start[i]), str(group_start[i] + step - 1)))
         time.sleep(3)
 
         # Launch the test
         shell_command = shell_command_template % (
-            algorithm, receiver.IP(), frequency, str(group_start[i]), str(group_start[i] + step),
+            algorithm, receiver.IP(), frequency,
+            str(group_start[i]), str(group_start[i] + step),
             'runtime-' + algorithm + '-' + frequency + '-' + str(i) + '.log'
         )
         storm.log(shell_command)

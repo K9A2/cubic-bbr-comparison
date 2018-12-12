@@ -36,11 +36,19 @@ done
 
 log "task started"
 
+step=$((${end} - ${start}))
+echo 'start: ' ${start}
+echo 'step: ' ${step}
+
+affinity=$((${start} / ${step}))
+
+log ${affinity}
+
 for((i=${start};i<${end};i++));
 do
   log "${cc} frequency ${frequency} round: ${i}"
   echo ${cc} > /proc/sys/net/ipv4/tcp_congestion_control
-  iperf3 -c ${address} -t 600 -J 1> \
+  iperf3 -c ${address} -t 600 -J -A ${affinity} 1> \
     iperf3-${cc}-frequency${frequency}-600s-${i}.json
   # give time to both side to fully finish the test
   sleep 60s
