@@ -22,6 +22,9 @@ dir_template = './convergence-%s/'
 # Use this dict to store the arguments from command line
 description = {}
 
+# All evaluated scenarios
+scenario = ['wired', '2.4g', '5g']
+
 
 def parse_options():
   parser = argparse.ArgumentParser(
@@ -29,25 +32,36 @@ def parse_options():
       and <AVERAGE CONGESTION WINDOW> from all JSON files obtained via iperf3.',
       formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+  # Functional arguments
   parser.add_argument(
-      '-a', default='cubic', action='store', dest='algorithm', type=str,
+      '-a', '--algorithm', default='cubic', action='store', dest='algorithm',
+      type=str, metavar='',
       help='the congestion control protocol needed to ba analyzed')
   parser.add_argument(
-      '-m', default=120, action='store', dest='max', type=int,
-      help='the maximum number of JSON files')
+      '-m', '--max', default=120, action='store', dest='max', type=int,
+      metavar='', help='the maximum number of JSON files')
   parser.add_argument(
-      '-w', default=30, action='store', dest='window', type=int,
-      help='the window size used to calculate the moving average')
+      '-w', '--window', default=30, action='store', dest='window', type=int,
+      metavar='', help='the window size used to calculate the moving average')
+
+  # Output arguments
   parser.add_argument(
-      '-s', default='wired', action='store', dest='scenario', type=str,
-      help='the target scenario, can be wired/2.4g/5g')
+      '-f', '--figure', default=False, action='store', dest='figure_output',
+      type=bool, metavar='',
+      help='the results will output as CDF figure')
+  parser.add_argument(
+      '-t', '--terminal', default=True, action='store', dest='terminal_output',
+      type=bool, metavar='',
+      help='the result will output at terminal')
 
   args = parser.parse_args()
 
   description['algorithm'] = args.algorithm
   description['max_count'] = args.max
   description['window'] = args.window
-  description['scenario'] = args.scenario
+
+  description['figure_output'] = args.figure_output
+  description['terminal_output'] = args.terminal_output
 
 
 def get_stat(file_name):
@@ -64,15 +78,19 @@ def get_stat(file_name):
   # Calculate the stability of convergence
   s = np.std(ma_cwnd)
 
-  return avg_cwnd, tc, s
+  return {
+      'avg_cwnd': avg_cwnd,
+      'tc': tc,
+      's': s
+  }
 
 
 def print_stats(average_cwnd, convergence_time, stability):
   print 'average cwnd:     %.2f' % np.average(average_cwnd)
   print 'convergence time: %.2f' % np.average(convergence_time)
   print 'stability:        %.2f' % np.average(stability)
-  print 'stability in %%    %.2f' % \
-      np.average(stability / np.average(average_cwnd) * 100)
+  print 'stability in %%    %.2f' \
+      % np.average(stability / np.average(average_cwnd) * 100)
 
 
 def main():
@@ -82,54 +100,61 @@ def main():
   algorithm = description['algorithm']
   max_count = description['max_count']
   window = description['window']
-  scenario = description['scenario']
+
+  figure_output = description['figure_output']
+  terminal_output = description['terminal_output']
 
   storm.log('Received arguments:')
   storm.log('algorithm: ' + algorithm)
   storm.log('max_count: ' + str(max_count))
   storm.log('window:    ' + str(window))
-  storm.log('scenario:  ' + scenario)
 
-  if scenario == 'wired':
-    for r in rtt:
-      for l in loss:
-        # Time to reach convergence
-        convergence_time = []
-        # Stability after convergence. Measured with the standard
-        # devidation of samples after convergence to the end of test
-        stability = []
-        # The average congestion window in this test
-        average_cwnd = []
+  storm.log('output as CDF figure: ' + str(figure_output))
+  storm.log('output at terminal:   ' + str(terminal_output))
 
-        for i in range(0, max_count):
-          working_dir = (dir_template % algorithm) + scenario + '/'
-          file_name = working_dir + \
-              (wired_file % (algorithm, str(r), str(l), str(i)))
-          avg_cwnd, tc, s = get_stat(file_name)
-          average_cwnd.append(avg_cwnd)
-          convergence_time.append(tc)
-          stability.append(s)
+  plot_result = {}
 
-        print '----------------------------------------'
-        print 'rtt%s-loss%s:' % (str(r), str(l))
-        print_stats(average_cwnd, convergence_time, stability)
+  # Loading results for wired scenarios
+  for r in rtt:
+    for l in loss:
+      # Time to reach convergence
+      convergence_time = []
+      # Stability after convergence. Measured with the standard
+      # devidation of samples after convergence to the end of test
+      stability = []
+      # The average congestion window in this test
+      average_cwnd = []
 
-  elif scenario == '2.4g' or scenario == '5g':
+      for i in range(0, max_count):
+        working_dir = (dir_template % algorithm) + scenario[0] + '/'
+        file_name = working_dir \
+            + (wired_file % (algorithm, str(r), str(l), str(i)))
+        stat = get_stat(file_name)
+        average_cwnd.append(stat['avg_cwnd'])
+        convergence_time.append(stat['tc'])
+        stability.append(stat['s'])
+
+      print '----------------------------------------'
+      print 'rtt%s-loss%s:' % (str(r), str(l))
+      print_stats(average_cwnd, convergence_time, stability)
+
     convergence_time = []
     stability = []
     average_cwnd = []
 
-    for i in range(0, max_count):
-      working_dir = (dir_template % algorithm) + scenario + '/'
-      file_name = working_dir + (wireless_file % (algorithm, scenario, str(i)))
+  for i in range(1, len(scenario)):
+    for j in range(0, max_count):
+      working_dir = (dir_template % algorithm) + scenario[i] + '/'
+      file_name = working_dir \
+          + (wireless_file % (algorithm, scenario[i], str(j)))
 
-      avg_cwnd, tc, s = get_stat(file_name)
-      average_cwnd.append(avg_cwnd)
-      convergence_time.append(tc)
-      stability.append(s)
+      stat = get_stat(file_name)
+      average_cwnd.append(stat['avg_cwnd'])
+      convergence_time.append(stat['tc'])
+      stability.append(stat['s'])
 
     print '----------------------------------------'
-    print '%s:' % scenario
+    print '%s:' % scenario[i]
     print_stats(average_cwnd, convergence_time, stability)
 
 
