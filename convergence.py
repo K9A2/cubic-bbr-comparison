@@ -50,6 +50,11 @@ def parse_options():
       '-f', '--figure', default=False, action='store_true', dest='figure_output',
       help='the results will output as CDF figure')
 
+  # Draw a separate legend is an optional feature
+  parser.add_argument(
+      '-l', '--legend', default=False, action='store_true', dest='legend',
+      help='provide a separate legend in a separate figure')
+
   args = parser.parse_args()
 
   description['algorithm'] = args.algorithm
@@ -57,6 +62,7 @@ def parse_options():
   description['window'] = args.window
 
   description['figure_output'] = args.figure_output
+  description['legend'] = args.legend
 
 
 def get_stat(file_name):
@@ -111,7 +117,7 @@ def print_stats(average_cwnd, convergence_time, stability, throughput):
   print 'average cwnd:     %.2f' % np.average(average_cwnd)
   print 'convergence time: %.2f' % np.average(convergence_time)
   print 'stability:        %.2f' % np.average(stability)
-  print 'stability in %%    %.2f' \
+  print 'stability in %%:   %.2f' \
       % np.average(stability / np.average(average_cwnd) * 100)
   print 'throughput:       %.2f' % np.average(throughput)
 
@@ -125,6 +131,7 @@ def main():
   window = description['window']
 
   figure_output = description['figure_output']
+  legend_out = description['legend']
 
   storm.log('Received arguments:')
   storm.log('algorithm: ' + algorithm)
@@ -132,6 +139,7 @@ def main():
   storm.log('window:    ' + str(window))
 
   storm.log('output as CDF figure: ' + str(figure_output))
+  storm.log('draw a separate legend: ' + str(legend_out))
 
   if figure_output == True:
     global_stats = {}
@@ -139,7 +147,7 @@ def main():
   # Load results for wired scenarios
   for r in rtt:
     for l in loss:
-      key = 'rtt%s-loss%s' % (r, l)
+      key = 'RTT %sms, loss %s %%' % (r, l)
       result_set = get_result_set()
       # Read results
       for i in range(0, max_count):
@@ -194,12 +202,56 @@ def main():
 
   # Plot CDF for convergence time
   if figure_output == True:
-    plt.figure(algorithm + '-CDF-ConvergenceTime')
+    font_size = 24
+    fig_plot = plt.figure(algorithm + '-CDF-ConvergenceTime', figsize=(16, 9))
+    ax1 = fig_plot.add_subplot(111)
 
-    for k in global_stats.keys():
-      plt.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'], label=k)
+    keys = []
+    lines = []
+    colors = []
+    for r in range(0, len(rtt)):
+      for l in range(0, len(loss)):
+        k = 'RTT %sms, loss %s %%' % (rtt[r], loss[l])
+        l = ax1.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'],
+                     label='Wired, ' + k, linewidth=3)
+        keys.append(k)
+        lines.append(l)
+        colors.append(l[0].get_color())
+    for i in range(1, len(scenario)):
+      k = scenario[i]
+      name = '2.4GHz, 802.11n' if k == '2.4g' else '5GHz, 802.11ac'
+      l = ax1.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'],
+                   label='Wireless, ' + name, linewidth=3)
+      keys.append(k)
+      lines.append(l)
+      colors.append(l[0].get_color())
+    plt.xticks(np.arange(0, 10, 1), fontsize=font_size)
+    plt.yticks(fontsize=font_size)
+    plt.ylim(0, 1)
 
-    plt.legend()
+    plt.xlabel('Convergence Time (s)', fontsize=font_size)
+    plt.ylabel('CDF', fontsize=font_size)
+
+    plt.subplots_adjust(left=0.07, right=0.97, top=0.96, bottom=0.11)
+
+    # Draw the legend in a separate figure
+    if legend_out == True:
+      handles, labels = ax1.get_legend_handles_labels()
+      handles = [
+          handles[0], handles[3], handles[6], handles[9],
+          handles[1], handles[4], handles[7], handles[10],
+          handles[2], handles[5], handles[8]
+      ]
+      labels = [
+          labels[0], labels[3], labels[6], labels[9],
+          labels[1], labels[4], labels[7], labels[10],
+          labels[2], labels[5], labels[8]
+      ]
+      fig_legend = plt.figure(figsize=(16.5, 2.2))
+      fig_legend.legend(handles, labels, loc='center', ncol=3, fontsize=font_size - 4)
+      plt.axis('off')
+      fig_legend.canvas.draw()
+
     plt.show()
 
 
