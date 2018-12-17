@@ -5,6 +5,7 @@ import argparse
 import json
 import sys
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 import libstorm as storm
@@ -44,15 +45,10 @@ def parse_options():
       '-w', '--window', default=30, action='store', dest='window', type=int,
       metavar='', help='the window size used to calculate the moving average')
 
-  # Output arguments
+  # Output as CDF is optional
   parser.add_argument(
-      '-f', '--figure', default=False, action='store', dest='figure_output',
-      type=bool, metavar='',
+      '-f', '--figure', default=False, action='store_true', dest='figure_output',
       help='the results will output as CDF figure')
-  parser.add_argument(
-      '-t', '--terminal', default=True, action='store', dest='terminal_output',
-      type=bool, metavar='',
-      help='the result will output at terminal')
 
   args = parser.parse_args()
 
@@ -61,7 +57,6 @@ def parse_options():
   description['window'] = args.window
 
   description['figure_output'] = args.figure_output
-  description['terminal_output'] = args.terminal_output
 
 
 def get_stat(file_name):
@@ -85,6 +80,27 @@ def get_stat(file_name):
   }
 
 
+def get_result_set():
+  return {
+      # Time to reach convergence
+      'convergence_time': [],
+      # Stability after convergence. Measured with the standard devidation
+      # of samples after convergence to the end of test
+      'stability': [],
+      # The average congestion window in this test
+      'average_cwnd': []
+  }
+
+
+def get_cdf_axises(values):
+  cdf_x = np.sort(values)
+  cdf_y = []
+  length = len(cdf_x)
+  for i in range(0, length):
+    cdf_y.append(float(i) / float(length))
+  return cdf_x, cdf_y
+
+
 def print_stats(average_cwnd, convergence_time, stability):
   print 'average cwnd:     %.2f' % np.average(average_cwnd)
   print 'convergence time: %.2f' % np.average(convergence_time)
@@ -102,7 +118,6 @@ def main():
   window = description['window']
 
   figure_output = description['figure_output']
-  terminal_output = description['terminal_output']
 
   storm.log('Received arguments:')
   storm.log('algorithm: ' + algorithm)
@@ -110,52 +125,73 @@ def main():
   storm.log('window:    ' + str(window))
 
   storm.log('output as CDF figure: ' + str(figure_output))
-  storm.log('output at terminal:   ' + str(terminal_output))
 
-  plot_result = {}
+  if figure_output == True:
+    global_stats = {}
 
-  # Loading results for wired scenarios
+  # Load results for wired scenarios
   for r in rtt:
     for l in loss:
-      # Time to reach convergence
-      convergence_time = []
-      # Stability after convergence. Measured with the standard
-      # devidation of samples after convergence to the end of test
-      stability = []
-      # The average congestion window in this test
-      average_cwnd = []
-
+      key = 'rtt%s-loss%s' % (r, l)
+      result_set = get_result_set()
+      # Read results
       for i in range(0, max_count):
         working_dir = (dir_template % algorithm) + scenario[0] + '/'
         file_name = working_dir \
             + (wired_file % (algorithm, str(r), str(l), str(i)))
         stat = get_stat(file_name)
-        average_cwnd.append(stat['avg_cwnd'])
-        convergence_time.append(stat['tc'])
-        stability.append(stat['s'])
+        result_set['average_cwnd'].append(stat['avg_cwnd'])
+        result_set['convergence_time'].append(stat['tc'])
+        result_set['stability'].append(stat['s'])
+      # Calculate the CDF axises
+      cdf_x, cdf_y = get_cdf_axises(result_set['convergence_time'])
+      result_set['cdf_x'] = cdf_x
+      result_set['cdf_y'] = cdf_y
 
+      if figure_output == True:
+        global_stats[key] = result_set
+
+      # Print local results
       print '----------------------------------------'
       print 'rtt%s-loss%s:' % (str(r), str(l))
-      print_stats(average_cwnd, convergence_time, stability)
+      print_stats(result_set['average_cwnd'], result_set['convergence_time'],
+                  result_set['stability'])
 
-    convergence_time = []
-    stability = []
-    average_cwnd = []
-
+  # Load results for wireless scenarios
   for i in range(1, len(scenario)):
+    key = scenario[i]
+    result_set = get_result_set()
     for j in range(0, max_count):
       working_dir = (dir_template % algorithm) + scenario[i] + '/'
       file_name = working_dir \
           + (wireless_file % (algorithm, scenario[i], str(j)))
 
       stat = get_stat(file_name)
-      average_cwnd.append(stat['avg_cwnd'])
-      convergence_time.append(stat['tc'])
-      stability.append(stat['s'])
+      result_set['average_cwnd'].append(stat['avg_cwnd'])
+      result_set['convergence_time'].append(stat['tc'])
+      result_set['stability'].append(stat['s'])
+    # Calculate the CDF axises
+    cdf_x, cdf_y = get_cdf_axises(result_set['convergence_time'])
+    result_set['cdf_x'] = cdf_x
+    result_set['cdf_y'] = cdf_y
+
+    if figure_output == True:
+      global_stats[key] = result_set
 
     print '----------------------------------------'
     print '%s:' % scenario[i]
-    print_stats(average_cwnd, convergence_time, stability)
+    print_stats(result_set['average_cwnd'], result_set['convergence_time'],
+                result_set['stability'])
+
+  # Plot CDF for convergence time
+  if figure_output == True:
+    plt.figure(algorithm + '-CDF-ConvergenceTime')
+
+    for k in global_stats.keys():
+      plt.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'], label=k)
+
+    plt.legend()
+    plt.show()
 
 
 if __name__ == '__main__':
