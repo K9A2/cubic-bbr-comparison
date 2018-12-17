@@ -73,10 +73,14 @@ def get_stat(file_name):
   # Calculate the stability of convergence
   s = np.std(ma_cwnd)
 
+  # Calculate the throughput of this evaluation
+  throughput = storm.get_field_array(intervals, 'bits_per_second', storm.M)
+
   return {
       'avg_cwnd': avg_cwnd,
       'tc': tc,
-      's': s
+      's': s,
+      'throughput': np.average(throughput)
   }
 
 
@@ -88,7 +92,9 @@ def get_result_set():
       # of samples after convergence to the end of test
       'stability': [],
       # The average congestion window in this test
-      'average_cwnd': []
+      'average_cwnd': [],
+      # The throughput measured by iperf3
+      'throughput': []
   }
 
 
@@ -101,12 +107,13 @@ def get_cdf_axises(values):
   return cdf_x, cdf_y
 
 
-def print_stats(average_cwnd, convergence_time, stability):
+def print_stats(average_cwnd, convergence_time, stability, throughput):
   print 'average cwnd:     %.2f' % np.average(average_cwnd)
   print 'convergence time: %.2f' % np.average(convergence_time)
   print 'stability:        %.2f' % np.average(stability)
   print 'stability in %%    %.2f' \
       % np.average(stability / np.average(average_cwnd) * 100)
+  print 'throughput:       %.2f' % np.average(throughput)
 
 
 def main():
@@ -143,6 +150,7 @@ def main():
         result_set['average_cwnd'].append(stat['avg_cwnd'])
         result_set['convergence_time'].append(stat['tc'])
         result_set['stability'].append(stat['s'])
+        result_set['throughput'].append(stat['throughput'])
       # Calculate the CDF axises
       cdf_x, cdf_y = get_cdf_axises(result_set['convergence_time'])
       result_set['cdf_x'] = cdf_x
@@ -155,7 +163,7 @@ def main():
       print '----------------------------------------'
       print 'rtt%s-loss%s:' % (str(r), str(l))
       print_stats(result_set['average_cwnd'], result_set['convergence_time'],
-                  result_set['stability'])
+                  result_set['stability'], result_set['throughput'])
 
   # Load results for wireless scenarios
   for i in range(1, len(scenario)):
@@ -170,6 +178,7 @@ def main():
       result_set['average_cwnd'].append(stat['avg_cwnd'])
       result_set['convergence_time'].append(stat['tc'])
       result_set['stability'].append(stat['s'])
+      result_set['throughput'].append(stat['throughput'])
     # Calculate the CDF axises
     cdf_x, cdf_y = get_cdf_axises(result_set['convergence_time'])
     result_set['cdf_x'] = cdf_x
@@ -181,7 +190,7 @@ def main():
     print '----------------------------------------'
     print '%s:' % scenario[i]
     print_stats(result_set['average_cwnd'], result_set['convergence_time'],
-                result_set['stability'])
+                result_set['stability'], result_set['throughput'])
 
   # Plot CDF for convergence time
   if figure_output == True:
