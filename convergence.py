@@ -202,7 +202,7 @@ def main():
 
   # Plot CDF for convergence time
   if figure_output == True:
-    font_size = 24
+    font_size = 48
     fig_plot = plt.figure(algorithm + '-CDF-ConvergenceTime', figsize=(16, 9))
     ax1 = fig_plot.add_subplot(111)
 
@@ -213,7 +213,7 @@ def main():
       for l in range(0, len(loss)):
         k = 'RTT %sms, loss %s %%' % (rtt[r], loss[l])
         l = ax1.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'],
-                     label='Wired, ' + k, linewidth=3)
+                     label='Wired, ' + k, linewidth=4)
         keys.append(k)
         lines.append(l)
         colors.append(l[0].get_color())
@@ -221,18 +221,18 @@ def main():
       k = scenario[i]
       name = '2.4GHz, 802.11n' if k == '2.4g' else '5GHz, 802.11ac'
       l = ax1.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'],
-                   label='Wireless, ' + name, linewidth=3)
+                   label='Wireless, ' + name, linewidth=4)
       keys.append(k)
       lines.append(l)
       colors.append(l[0].get_color())
-    plt.xticks(np.arange(0, 10, 1), fontsize=font_size)
+    plt.xticks(np.arange(0, 120 + 20, 20), fontsize=font_size)
     plt.yticks(fontsize=font_size)
     plt.ylim(0, 1)
 
     plt.xlabel('Convergence Time (s)', fontsize=font_size)
     plt.ylabel('CDF', fontsize=font_size)
 
-    plt.subplots_adjust(left=0.07, right=0.97, top=0.96, bottom=0.11)
+    plt.subplots_adjust(left=0.13, right=0.95, top=0.96, bottom=0.17)
 
     # Draw the legend in a separate figure
     if legend_out == True:
@@ -248,8 +248,10 @@ def main():
           labels[2], labels[5], labels[8]
       ]
       fig_legend = plt.figure(figsize=(16.5, 2.2))
-      fig_legend.legend(handles, labels, loc='center', ncol=3, fontsize=font_size - 4)
+      leg = fig_legend.legend(handles, labels, loc='center', ncol=3, fontsize=20)
       plt.axis('off')
+      leg_lines = leg.get_lines()
+      plt.setp(leg_lines, linewidth=8)
       fig_legend.canvas.draw()
 
     plt.show()
