@@ -26,6 +26,13 @@ description = {}
 # All evaluated scenarios
 scenario = ['wired', '2.4g', '5g']
 
+# Use designated colors to avoid repetition
+line_color = [
+    'darkorange', 'slateblue', 'yellowgreen', 'red', 'black',
+    'firebrick', 'gold', 'seagreen', 'chartreuse', 'deepskyblue',
+    'darkorchid'
+]
+
 
 def parse_options():
   parser = argparse.ArgumentParser(
@@ -209,11 +216,14 @@ def main():
     keys = []
     lines = []
     colors = []
+    color_index = 0
     for r in range(0, len(rtt)):
       for l in range(0, len(loss)):
         k = 'RTT %sms, loss %s %%' % (rtt[r], loss[l])
         l = ax1.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'],
-                     label='Wired, ' + k, linewidth=4)
+                     label='Wired, ' + k, linewidth=4,
+                     color=line_color[color_index])
+        color_index += 1
         keys.append(k)
         lines.append(l)
         colors.append(l[0].get_color())
@@ -221,7 +231,9 @@ def main():
       k = scenario[i]
       name = '2.4GHz, 802.11n' if k == '2.4g' else '5GHz, 802.11ac'
       l = ax1.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'],
-                   label='Wireless, ' + name, linewidth=4)
+                   label='Wireless, ' + name, linewidth=4,
+                   color=line_color[color_index])
+      color_index += 1
       keys.append(k)
       lines.append(l)
       colors.append(l[0].get_color())
