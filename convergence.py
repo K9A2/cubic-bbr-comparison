@@ -72,17 +72,17 @@ def parse_options():
   description['legend'] = args.legend
 
 
-def get_stat(file_name):
+def get_stat(file_name, window):
   json_object = json.load(open(file_name, 'r'))
   intervals = json_object['intervals']
-  cwnd = storm.get_field_array(intervals, 'snd_cwnd', storm.K)
+  cwnd = np.array(storm.get_field_array(intervals, 'snd_cwnd', storm.K))
 
   # Calculate the average congestion window
   avg_cwnd = np.average(cwnd)
   # Calculate the moving average of congestion window with given window
   ma_cwnd = storm.getMovingAverage(cwnd, description['window'])
   # Calculate the time of convergence
-  tc = storm.getFirst(ma_cwnd, avg_cwnd * 1.2, avg_cwnd * 0.8)
+  tc = storm.getFirst(ma_cwnd, avg_cwnd * 1.2, avg_cwnd * 0.8) + window
   # Calculate the stability of convergence
   s = np.std(ma_cwnd)
 
@@ -161,7 +161,7 @@ def main():
         working_dir = (dir_template % algorithm) + scenario[0] + '/'
         file_name = working_dir \
             + (wired_file % (algorithm, str(r), str(l), str(i)))
-        stat = get_stat(file_name)
+        stat = get_stat(file_name, window)
         result_set['average_cwnd'].append(stat['avg_cwnd'])
         result_set['convergence_time'].append(stat['tc'])
         result_set['stability'].append(stat['s'])
@@ -189,7 +189,7 @@ def main():
       file_name = working_dir \
           + (wireless_file % (algorithm, scenario[i], str(j)))
 
-      stat = get_stat(file_name)
+      stat = get_stat(file_name, window)
       result_set['average_cwnd'].append(stat['avg_cwnd'])
       result_set['convergence_time'].append(stat['tc'])
       result_set['stability'].append(stat['s'])
@@ -237,14 +237,14 @@ def main():
       keys.append(k)
       lines.append(l)
       colors.append(l[0].get_color())
-    plt.xticks(np.arange(0, 120 + 20, 20), fontsize=font_size)
+    plt.xticks(np.arange(30, 170 + 30, 30), fontsize=font_size, y=-0.03)
     plt.yticks(fontsize=font_size)
     plt.ylim(0, 1)
 
     plt.xlabel('Convergence Time (s)', fontsize=font_size)
     plt.ylabel('CDF', fontsize=font_size)
 
-    plt.subplots_adjust(left=0.13, right=0.95, top=0.96, bottom=0.17)
+    plt.subplots_adjust(left=0.13, right=0.95, top=0.96, bottom=0.20)
 
     # Draw the legend in a separate figure
     if legend_out == True:
