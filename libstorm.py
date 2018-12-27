@@ -213,6 +213,22 @@ def get_csv_result_with_headers(csv, headers):
   return data
 
 
+def write_array_as_row_in_csv(csv_file, values, separator):
+  """
+  Use this method to write an array as a single row in given csv file with
+  designated separator
+
+  :param csv_file: The pre-opened CSV file instance
+  :param values: The values to be wrote as a line
+  :param separator: Use this to separate the adjacent values
+  """
+  list_string = ''
+  for i in range(0, len(values)):
+    list_string += (str(values[i]) + separator)
+  list_string += '\n'
+  csv_file.write(list_string)
+
+
 def get_sum_array(a, b):
   """获取两数组对应各项相加所得和的数组
 
