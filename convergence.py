@@ -2,7 +2,6 @@
 # coding=utf-8
 
 import argparse
-import csv
 import json
 
 import matplotlib.pyplot as plt
@@ -21,12 +20,16 @@ wireless_file = 'iperf3-%s-frequency%s-600s-%s.json'
 dir_template = './convergence-%s/'
 # algorithm-key-[x|y]
 csv_row_header_template = '%s-%s-%s'
+wired_scenario_key_template = 'RTT %sms, Loss %s%%'
 
 # Use this dict to store the arguments from command line
 description = {}
 
 # All evaluated scenarios
 scenario = ['wired', '2.4g', '5g']
+
+# Load these specified scenarios in wired network simulation
+task_wired = [(0.01, 30), (0.01, 100), (0.01, 200), (0.1, 100)]
 
 # Use designated colors to avoid repetition
 line_color = [
@@ -66,8 +69,8 @@ def parse_options():
 
   # Output a CSV file with given name
   parser.add_argument(
-    '-c', '--csv', default='output.csv', action='store', dest='csv', type=str,
-    metavar='', help='Output a CSV file with given name')
+    '-c', '--csv', action='store', dest='csv', type=str, metavar='',
+    help='Output a CSV file with given name')
 
   args = parser.parse_args()
 
@@ -157,7 +160,11 @@ def main():
   storm.log('window:    ' + str(window))
 
   storm.log('output as CDF figure: ' + str(figure_output))
-  storm.log('output a CSV file:    ' + csv_output)
+
+  if csv_output is not None:
+    storm.log('output a CSV file:    ' + csv_output)
+  else:
+    storm.log('output a CSV file: None')
 
   storm.log('draw a separate legend: ' + str(legend_out))
 
@@ -168,34 +175,36 @@ def main():
   }
 
   # Load results for wired scenarios
-  for r in rtt:
-    for l in loss:
-      key = 'RTT %sms Loss %s %%' % (r, l)
-      global_stats['key-set'].append(key)
-      result_set = get_result_set()
-      # Read results
-      for i in range(0, max_count):
-        working_dir = (dir_template % algorithm) + scenario[0] + '/'
-        file_name = working_dir \
-                    + (wired_file % (algorithm, str(r), str(l), str(i)))
-        stat = get_stat(file_name, window)
-        result_set['average_cwnd'].append(stat['avg_cwnd'])
-        result_set['convergence_time'].append(stat['tc'])
-        result_set['stability'].append(stat['s'])
-        result_set['throughput'].append(stat['throughput'])
+  for task in task_wired:
+    l = task[0]
+    r = task[1]
+    key = wired_scenario_key_template % (r, l)
 
-      # Calculate the CDF axises
-      cdf_x, cdf_y = get_cdf_axises(result_set['convergence_time'])
-      result_set['cdf_x'] = cdf_x
-      result_set['cdf_y'] = cdf_y
+    global_stats['key-set'].append(key)
+    result_set = get_result_set()
+    # Read results
+    for i in range(0, max_count):
+      working_dir = (dir_template % algorithm) + scenario[0] + '/'
+      file_name = working_dir \
+                  + (wired_file % (algorithm, str(r), str(l), str(i)))
+      stat = get_stat(file_name, window)
+      result_set['average_cwnd'].append(stat['avg_cwnd'])
+      result_set['convergence_time'].append(stat['tc'])
+      result_set['stability'].append(stat['s'])
+      result_set['throughput'].append(stat['throughput'])
 
-      global_stats[key] = result_set
+    # Calculate the CDF axises
+    cdf_x, cdf_y = get_cdf_axises(result_set['convergence_time'])
+    result_set['cdf_x'] = cdf_x
+    result_set['cdf_y'] = cdf_y
 
-      # Print local results
-      print '----------------------------------------'
-      print 'rtt%s-loss%s:' % (str(r), str(l))
-      print_stats(result_set['average_cwnd'], result_set['convergence_time'],
-                  result_set['stability'], result_set['throughput'])
+    global_stats[key] = result_set
+
+    # Print local results
+    print '----------------------------------------'
+    print wired_scenario_key_template % (str(r), str(l))
+    print_stats(result_set['average_cwnd'], result_set['convergence_time'],
+                result_set['stability'], result_set['throughput'])
 
   # Load results for wireless scenarios
   for i in range(1, len(scenario)):
@@ -226,7 +235,7 @@ def main():
                 result_set['stability'], result_set['throughput'])
 
   # Output if is required
-  if csv_output != '':
+  if csv_output is not None:
     with open(csv_output, 'w') as csv_file:
       for k in global_stats['key-set']:
         csv_x = [csv_row_header_template % (algorithm, k, 'values')]
@@ -247,16 +256,19 @@ def main():
     lines = []
     colors = []
     color_index = 0
-    for r in range(0, len(rtt)):
-      for l in range(0, len(loss)):
-        k = 'RTT %sms, loss %s %%' % (rtt[r], loss[l])
-        line = ax1.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'],
-                        label='Wired, ' + k, linewidth=4,
-                        color=line_color[color_index])
-        color_index += 1
-        keys.append(k)
-        lines.append(l)
-        colors.append(line[0].get_color())
+    # Wired scenarios
+    for task in task_wired:
+      l = task[0]
+      r = task[1]
+      k = wired_scenario_key_template % (r, l)
+      line = ax1.plot(global_stats[k]['cdf_x'], global_stats[k]['cdf_y'],
+                      label='Wired, ' + k, linewidth=4,
+                      color=line_color[color_index])
+      color_index += 1
+      keys.append(k)
+      lines.append(line)
+      colors.append(line[0].get_color())
+    # Wireless scenarios
     for i in range(1, len(scenario)):
       k = scenario[i]
       name = '2.4GHz, 802.11n' if k == '2.4g' else '5GHz, 802.11ac'
@@ -267,7 +279,7 @@ def main():
       keys.append(k)
       lines.append(l)
       colors.append(l[0].get_color())
-    plt.xticks(np.arange(30, 170 + 30, 30), fontsize=font_size, y=-0.03)
+    plt.xticks(np.arange(30, 130 + 20, 20), fontsize=font_size, y=-0.03)
     plt.yticks(fontsize=font_size)
     plt.ylim(0, 1)
 
