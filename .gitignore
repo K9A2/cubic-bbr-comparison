@@ -1,3 +1,4 @@
 convergence-*/
 *.tar.gz
 *.pyc
+data/
