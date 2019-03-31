@@ -2,3 +2,5 @@ convergence-*/
 *.tar.gz
 *.pyc
 data/
+target/
+.idea/

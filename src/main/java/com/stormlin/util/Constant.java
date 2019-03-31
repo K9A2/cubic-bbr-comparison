@@ -1,11 +1,13 @@
 package com.stormlin.util;
 
+import java.text.DecimalFormat;
+
 public class Constant {
 
     public static final int DATA_PACKET_SIZE_ON_WIRE_IN_BYTE = 1514;
     public static final int PACKET_OVERHEAD_ON_WIRE = 66;
 
-    public static final int DEFAULT_SERVER_PORT = 5201;
+    public static final String DEFAULT_SERVER_PORT = "5201";
 
     public static final String TASK_STATUS_LOG_TEMPLATE = "Task \"%s, rtt=%s, loss=%s\", status=%s";
     public static final String RUNTIME_LOG_NAME_TEMPLATE = "runtime-%s-rtt%s-loss%s.log";
@@ -21,6 +23,6 @@ public class Constant {
     // 当 ack 数目大于等于 3 时, 认为发生了一次丢包
     public static final int ACK_LOSS_THRESHOLD = 3;
 
-    public static final String dateFormat = "yyyy-MM-dd HH:mm:ss";
+    public static final DecimalFormat PERCENTAGE_FORMAT = new DecimalFormat("0.00");
 
 }

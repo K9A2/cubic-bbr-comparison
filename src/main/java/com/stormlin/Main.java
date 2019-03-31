@@ -1,36 +1,39 @@
 package com.stormlin;
 
+import com.stormlin.util.Worker;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
 
     private static Logger logger = LogManager.getLogger();
 
-    public int DATA_PACKET_SIZE_ON_WIRE_IN_BYTE = 1000;
-    public int PACKET_OVERHEAD_ON_WIRE = 66;
-
-    public String DEFAULT_SERVER_PORT = "5201";
-
-    public String TASK_STATUS_LOG_TEMPLATE = "Task \"%s, rtt=%s, loss=%s\", status=%s";
-    public String RUNTIME_LOG_NAME_TEMPLATE = "runtime-%s-rtt%s-loss%s.log";
-
-    public String IPERF_FILE_NAME_TEMPLATE = "./%s/iperf3-%s-rtt%s-loss%s-1g-%s.json";
-    public String TCPDUMP_FILE_NAME_TEMPLATE = "./%s/tcpdump-%s-rtt%s-loss%s-1g-%s.log";
-
-    // 当数据包发送次数大于等于 2 时, 认为发生了一次丢包
-    public int DATA_PACKET_LOSS_THRESHOLD = 2;
-    // 当 ack 数目大于等于 3 时, 认为发生了一次丢包
-    public int ACK_LOSS_THRESHOLD = 3;
-
     public static void main(String[] args) {
 
         int cores = Runtime.getRuntime().availableProcessors();
         logger.info("number of cores: " + cores);
-//        ExecutorService service = Executors.newFixedThreadPool(cores - 1);
-//        Worker worker = new Worker("bbr", "200", "3");
-//        service.execute(worker);
-//        service.shutdown();
+
+        ExecutorService executor = Executors.newFixedThreadPool(cores);
+
+        String[] lossArray = new String[]{"3", "5"};
+        for (String loss : lossArray) {
+            Worker worker = new Worker("bbr", "200", loss);
+            executor.execute(worker);
+        }
+        executor.shutdown();
+
+        // 等待所有结束之后输出结果
+        try {
+            executor.awaitTermination(Long.MAX_VALUE, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            logger.error("Program interrupted");
+        }
+
+        logger.info("Program finished.");
 
     }
 }
