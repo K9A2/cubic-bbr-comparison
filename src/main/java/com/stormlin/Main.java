@@ -17,7 +17,7 @@ public class Main {
         int cores = Runtime.getRuntime().availableProcessors();
         logger.info("number of cores: " + cores);
 
-        ExecutorService executor = Executors.newFixedThreadPool(cores);
+        ExecutorService executor = Executors.newFixedThreadPool(1);
 
         String[] lossArray = new String[]{"3", "5"};
         for (String loss : lossArray) {
