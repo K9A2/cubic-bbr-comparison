@@ -2,8 +2,6 @@ package com.stormlin.util;
 
 import com.stormlin.entity.EvaluationResult;
 import com.stormlin.entity.ExtractedHeader;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -11,12 +9,10 @@ import java.util.HashMap;
 
 public class Worker implements Runnable {
 
-    private static final Logger logger = LogManager.getLogger();
+    private Logger logger;
 
     // 可重用的包头信息对象
     private ExtractedHeader header = new ExtractedHeader();
-    // 可重用的数据包计数
-    private HashMap<Integer, Integer> dataPacket = new HashMap<>();
     // 提取的测试结果
     private HashMap<String, EvaluationResult> resultMap = new HashMap<>();
 
@@ -28,6 +24,7 @@ public class Worker implements Runnable {
         this.algorithm = algorithm;
         this.rtt = rtt;
         this.loss = loss;
+        logger = new Logger(String.format(Constant.LOG_FILE_FORMAT, algorithm, rtt, loss));
     }
 
     /**
@@ -36,14 +33,29 @@ public class Worker implements Runnable {
     @Override
     public void run() {
 
+        // 分析发送方的数据
         String fileName = String.format(Constant.TCPDUMP_FILE_NAME_TEMPLATE, algorithm, rtt, loss, Constant.ROLE_SENDER);
+        analyze(fileName, Constant.ROLE_SENDER);
+
+        // 分析接收方的数据
+        fileName = String.format(Constant.TCPDUMP_FILE_NAME_TEMPLATE, algorithm, rtt, loss, Constant.ROLE_RECEIVER);
+        analyze(fileName, Constant.ROLE_RECEIVER);
+
+        // 输出测试结果
+        outputEvaluationResult();
+    }
+
+    private void analyze(String fileName, String role) {
+
+        HashMap<Long, Integer> dataPacket = new HashMap<>();
+
         File file = new File("./data/" + fileName);
 
         BufferedInputStream inputStream = null;
         try {
             inputStream = new BufferedInputStream(new FileInputStream(file));
         } catch (FileNotFoundException e) {
-            logger.error("File: " + fileName + " not found");
+            logger.log("File: " + fileName + " not found");
         }
         if (inputStream == null) {
             return;
@@ -51,7 +63,7 @@ public class Worker implements Runnable {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
 
         // 发送方 IP
-        String senderIP;
+        String senderIP = "";
         // 发送方端口号
         String senderPort = "";
 
@@ -74,7 +86,7 @@ public class Worker implements Runnable {
                 if (!header.senderPort.equals(controlSocketPort) && !header.senderPort.equals(dataSocketPort) &&
                         !header.senderPort.equals(serverPort)) {
                     // 解析上一个测试的数据包发送记录
-                    parsePacketHistory(dataPacket, resultKey);
+                    parsePacketHistory(dataPacket, resultKey, role);
                     // 为新测试清空数据集
                     dataPacket.clear();
 
@@ -94,34 +106,43 @@ public class Worker implements Runnable {
                         }
                     }
                     resultKey = controlSocketPort + "-" + dataSocketPort;
-                    EvaluationResult result = new EvaluationResult();
-                    resultMap.put(resultKey, result);
+                    if (!resultMap.containsKey(resultKey)) {
+                        EvaluationResult result = new EvaluationResult();
+                        resultMap.put(resultKey, result);
+                    }
 
-                    logger.info("Detected new test at line " + count);
-                    logger.info("controlSocketPort = " + controlSocketPort + ", dataSocketPort = " + dataSocketPort);
+                    logger.log("Detected new test at line " + count);
+                    logger.log("controlSocketPort = " + controlSocketPort + ", dataSocketPort = " + dataSocketPort);
                 }
 
-                // 数据包的序列号包含分号则表明此数据包为一个测试数据包
-                byte index = (byte) header.seq.indexOf(":");
-                if (index != -1) {
-                    int seq = Integer.parseInt(header.seq.substring(0, index));
-                    if (dataPacket.containsKey(seq)) {
-                        dataPacket.put(seq, dataPacket.get(seq) + 1);
+                if (role.equals(Constant.ROLE_SENDER) && header.senderIp.equals(senderIP) &&
+                        header.senderPort.equals(dataSocketPort)) {
+                    // 数据包的序列号包含分号则表明此数据包为一个测试数据包
+                    byte index = (byte) header.seq.indexOf(":");
+                    if (index != -1) {
+                        long seq = Long.parseLong(header.seq.substring(0, index));
+                        if (dataPacket.containsKey(seq)) {
+                            dataPacket.put(seq, dataPacket.get(seq) + 1);
+                        } else {
+                            dataPacket.put(seq, 1);
+                        }
+                    }
+                } else if (role.equals(Constant.ROLE_RECEIVER) && header.receiverIp.equals(senderIP) &&
+                        header.receiverPort.equals(dataSocketPort)) {
+                    // 这是一个 ack 包
+                    long ack = Long.parseLong(header.seq);
+                    if (dataPacket.containsKey(ack)) {
+                        dataPacket.put(ack, dataPacket.get(ack) + 1);
                     } else {
-                        dataPacket.put(seq, 1);
+                        dataPacket.put(ack, 1);
                     }
                 }
             }
             // 解析最后一次测试的数据包发送记录
-            parsePacketHistory(dataPacket, resultKey);
+            parsePacketHistory(dataPacket, resultKey, role);
         } catch (IOException e) {
-            logger.error("IO exception");
+            logger.log("IO exception");
         }
-
-        // 输出测试结果
-        outputEvaluationResult();
-
-        logger.info(count + " line scanned");
     }
 
     /**
@@ -129,7 +150,7 @@ public class Worker implements Runnable {
      *
      * @param dataPacket 数据包发送次数记录
      */
-    private void parsePacketHistory(HashMap<Integer, Integer> dataPacket, String resultKey) {
+    private void parsePacketHistory(HashMap<Long, Integer> dataPacket, String resultKey, String role) {
         if (dataPacket.isEmpty() || resultKey.equals("")) {
             return;
         }
@@ -138,27 +159,54 @@ public class Worker implements Runnable {
             return;
         }
 
+        int payload;
+        int threshold;
+        int onWireSize;
+        if (role.equals(Constant.ROLE_SENDER)) {
+            payload = Constant.DATA_PACKET_PAYLOAD;
+            threshold = Constant.DATA_PACKET_LOSS_THRESHOLD;
+            onWireSize = Constant.DATA_PACKET_PAYLOAD + Constant.PACKET_OVERHEAD_ON_WIRE;
+        } else {
+            payload = 0;
+            threshold = Constant.ACK_LOSS_THRESHOLD;
+            onWireSize = Constant.PACKET_OVERHEAD_ON_WIRE;
+        }
         // 解析记录并保存到全局记录集合中
         for (int value : dataPacket.values()) {
-            result.payloadSent += Constant.DATA_PACKET_PAYLOAD;
-            result.packetSent += 1;
-            result.onWireSentSender += Constant.DATA_PACKET_SIZE_ON_WIRE_IN_BYTE + Constant.PACKET_OVERHEAD_ON_WIRE;
-            if (value >= Constant.DATA_PACKET_LOSS_THRESHOLD) {
-                // 数据包被重传
-                result.payloadRetransmitted += Constant.DATA_PACKET_PAYLOAD * (value - 1);
-                result.packetRetransmitted += (value - 1);
-                result.packetLossSender += 1;
-                result.onWireRetransmittedSender +=
-                        (Constant.DATA_PACKET_SIZE_ON_WIRE_IN_BYTE + Constant.PACKET_OVERHEAD_ON_WIRE) * (value - 1);
-
+            if (role.equals(Constant.ROLE_SENDER)) {
+                result.payloadSent += payload;
+                result.packetSent += 1;
+                result.onWireSentSender += onWireSize;
+            } else {
+                result.onWireSentReceiver += onWireSize;
+            }
+            if (value >= threshold) {
+                if (role.equals(Constant.ROLE_SENDER)) {
+                    // 数据包被重传
+                    result.payloadRetransmitted += payload * (value - 1);
+                    result.packetRetransmitted += (value - 1);
+                    result.packetLossSender += 1;
+                    result.onWireRetransmittedSender += onWireSize * (value - 1);
+                } else {
+                    // 确认包被重传
+                    result.packetLossReceiver += 1;
+                    result.onWireRetransmittedReceiver += onWireSize * (value - 1);
+                }
             }
         }
 
-        result.packetTransmittedTotal = result.packetSent + result.packetRetransmitted;
-        result.onWireTotal = result.onWireSentReceiver + result.onWireRetransmittedSender;
-        result.lossRatio = result.packetLossSender / (result.packetSent + result.packetRetransmitted);
-        result.packetRetransmittedPerDataPacket = result.packetLossSender / result.packetSent;
-        result.packetRetransmittedPerLossSender = result.packetLossSender / result.packetLossSender;
+        if (role.equals(Constant.ROLE_SENDER)) {
+            result.packetTransmittedTotal = result.packetSent + result.packetRetransmitted;
+            result.lossRatioSender = result.packetLossSender / result.packetSent;
+            result.packetRetransmittedPerDataPacket = result.packetLossSender / result.packetSent;
+            result.packetRetransmittedPerLossSender = result.packetRetransmitted / result.packetLossSender;
+        } else {
+            result.lossRatioReceiver = result.packetLossReceiver / result.packetSent;
+            result.packetRetransmittedPerLossReceiver = result.packetRetransmitted / result.packetLossReceiver;
+            result.onWireTotal = result.onWireSentReceiver + result.onWireRetransmittedSender +
+                    result.onWireSentReceiver + result.onWireRetransmittedReceiver;
+        }
+
     }
 
     /**
@@ -166,7 +214,7 @@ public class Worker implements Runnable {
      */
     private void outputEvaluationResult() {
         if (resultMap.isEmpty()) {
-            logger.error("Task " + algorithm + " @ rtt = " + rtt + ", loss = " + loss + " has not output!");
+            logger.log("Task " + algorithm + " @ rtt = " + rtt + ", loss = " + loss + " has not output!");
         }
         for (String resultKey : resultMap.keySet()) {
             EvaluationResult result = resultMap.get(resultKey);
@@ -174,26 +222,30 @@ public class Worker implements Runnable {
                 return;
             }
 
-            logger.info("Info from " + algorithm + " @ rtt =" + rtt + ", loss = " + loss);
-            logger.info("Evaluation Key = " + resultKey);
-            logger.info("TCP Payload (Sent) = " + result.payloadSent / Constant.GB);
-            logger.info("TCP Payload (Retransmitted) = " + result.payloadRetransmitted / Constant.GB);
+            logger.log("----------------------------------------------------------------");
+            logger.log("Info from " + algorithm + " @ rtt =" + rtt + ", loss = " + loss);
+            logger.log("Evaluation Key = " + resultKey);
+            logger.log("TCP Payload (Sent) = " + result.payloadSent / Constant.GB);
+            logger.log("TCP Payload (Retransmitted) = " + result.payloadRetransmitted / Constant.GB);
 
-            logger.info("Packet Sent (Sender) = " + result.packetSent);
-            logger.info("Packet Retransmitted (Sender) = " + result.packetRetransmitted);
-            logger.info("Packet Total (Sender) = " + result.packetTransmittedTotal);
-            logger.info("Packet Loss (Sender) = " + result.packetLossSender);
+            logger.log("Packet Sent (Sender) = " + result.packetSent);
+            logger.log("Packet Retransmitted (Sender) = " + result.packetRetransmitted);
+            logger.log("Packet Total (Sender) = " + result.packetTransmittedTotal);
+            logger.log("Packet Loss (Sender) = " + result.packetLossSender);
+            logger.log("Packet Loss (Receiver) = " + result.packetLossReceiver);
 
-            logger.info("Loss Ratio (Sender) = " + result.lossRatio);
+            logger.log("Loss Ratio (Sender) = " + result.lossRatioSender);
+            logger.log("Loss Ratio (Receiver) = " + result.lossRatioReceiver);
 
-            logger.info("Retransmission Per Data Packet = " + result.packetRetransmittedPerDataPacket);
-            logger.info("Retransmission Per Loss (Sender) = " + result.packetRetransmittedPerLossSender);
+            logger.log("Retransmission Per Data Packet = " + result.packetRetransmittedPerDataPacket);
+            logger.log("Retransmission Per Loss (Sender) = " + result.packetRetransmittedPerLossSender);
+            logger.log("Retransmission Per Loss (Receiver) = " + result.packetRetransmittedPerLossReceiver);
 
-            logger.info("On-Wire Sent (Sender) = " + result.onWireSentSender / Constant.GB);
-            logger.info("On-Wire Retransmitted (Sender) = " + result.onWireRetransmittedSender / Constant.GB);
-            logger.info("On-Wire Total (Sender) = " + result.onWireTotal / Constant.GB);
-
-            logger.info("----------------------------------------------------------------");
+            logger.log("On-Wire Sent (Sender) = " + result.onWireSentSender / Constant.GB);
+            logger.log("On-Wire Retransmitted (Sender) = " + result.onWireRetransmittedSender / Constant.GB);
+            logger.log("On-Wire Sent (Receiver) = " + result.onWireSentReceiver / Constant.GB);
+            logger.log("On-Wire Retransmitted (Sender) = " + result.onWireRetransmittedReceiver / Constant.GB);
+            logger.log("On-Wire Total = " + result.onWireTotal / Constant.GB);
         }
     }
 
