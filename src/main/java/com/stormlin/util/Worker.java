@@ -9,7 +9,8 @@ import java.util.HashMap;
 
 public class Worker implements Runnable {
 
-    private Logger logger;
+    private FileLogger logger;
+    private static final TerminalLogger terminalLogger = TerminalLogger.getLogger();
 
     // 可重用的包头信息对象
     private ExtractedHeader header = new ExtractedHeader();
@@ -19,12 +20,14 @@ public class Worker implements Runnable {
     private String algorithm;
     private String rtt;
     private String loss;
+    private String key;
 
     public Worker(String algorithm, String rtt, String loss) {
         this.algorithm = algorithm;
         this.rtt = rtt;
         this.loss = loss;
-        logger = new Logger(String.format(Constant.LOG_FILE_FORMAT, algorithm, rtt, loss));
+        key = String.format(Constant.TASK_KEY, algorithm, rtt, loss);
+        logger = new FileLogger(String.format(Constant.LOG_FILE_FORMAT, algorithm, rtt, loss));
     }
 
     /**
@@ -33,10 +36,14 @@ public class Worker implements Runnable {
     @Override
     public void run() {
 
+        terminalLogger.log(String.format(Constant.MESSAGE_FORMAT, key, "started"));
+
+        terminalLogger.log(String.format(Constant.MESSAGE_FORMAT, key, "loading sender tcpdump file"));
         // 分析发送方的数据
         String fileName = String.format(Constant.TCPDUMP_FILE_NAME_TEMPLATE, algorithm, rtt, loss, Constant.ROLE_SENDER);
         analyze(fileName, Constant.ROLE_SENDER);
 
+        terminalLogger.log(String.format(Constant.MESSAGE_FORMAT, key, "loading receiver tcpdump file"));
         // 分析接收方的数据
         fileName = String.format(Constant.TCPDUMP_FILE_NAME_TEMPLATE, algorithm, rtt, loss, Constant.ROLE_RECEIVER);
         analyze(fileName, Constant.ROLE_RECEIVER);

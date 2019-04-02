@@ -29,6 +29,9 @@ public class Constant {
     public static final int MB = KB * 1024;
     public static final int GB = MB * 1024;
 
+    public static final String TASK_KEY = "%s @ rtt = %s, loss = %s";
+    public static final String MESSAGE_FORMAT = "%s - %s";
+
     public static final DecimalFormat PERCENTAGE_FORMAT = new DecimalFormat("0.00");
 
 }

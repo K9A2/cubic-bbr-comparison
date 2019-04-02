@@ -5,12 +5,12 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-class Logger {
+class FileLogger {
 
     private String fileName;
     private SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 
-    Logger(String fileName) {
+    FileLogger(String fileName) {
         this.fileName = fileName;
     }
 
