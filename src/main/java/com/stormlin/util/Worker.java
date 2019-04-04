@@ -21,12 +21,14 @@ public class Worker implements Runnable {
     private String rtt;
     private String loss;
     private String key;
+    private String dataFileFolder;
 
-    public Worker(String algorithm, String rtt, String loss) {
+    public Worker(String algorithm, String rtt, String loss, String dataFileFolder) {
         this.algorithm = algorithm;
         this.rtt = rtt;
         this.loss = loss;
         key = String.format(Constant.TASK_KEY, algorithm, rtt, loss);
+        this.dataFileFolder = dataFileFolder;
         logger = new FileLogger(String.format(Constant.LOG_FILE_FORMAT, algorithm, rtt, loss));
     }
 
@@ -56,7 +58,7 @@ public class Worker implements Runnable {
 
         HashMap<Long, Integer> dataPacket = new HashMap<>();
 
-        File file = new File("./data/" + fileName);
+        File file = new File(dataFileFolder + fileName);
 
         BufferedInputStream inputStream = null;
         try {
@@ -147,6 +149,8 @@ public class Worker implements Runnable {
             }
             // 解析最后一次测试的数据包发送记录
             parsePacketHistory(dataPacket, resultKey, role);
+            // 最终关闭输入流, 释放相关资源
+            inputStream.close();
         } catch (IOException e) {
             logger.log("IO exception");
         }
