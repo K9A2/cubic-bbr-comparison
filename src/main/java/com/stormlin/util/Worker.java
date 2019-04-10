@@ -1,7 +1,6 @@
 package com.stormlin.util;
 
 import com.google.common.hash.BloomFilter;
-import com.google.common.hash.Funnel;
 import com.google.common.hash.Funnels;
 import com.stormlin.entity.EvaluationResult;
 import com.stormlin.entity.ExtractedHeader;
@@ -91,7 +90,6 @@ public class Worker implements Runnable {
         String resultKey = "";
         BloomFilter filter = BloomFilter.create(Funnels.longFunnel(), 1024 * 1024, 0.00001);
         int distinctEntries = 0;
-        int collisions = 0;
         try {
             // 按行读取文件
             while ((line = reader.readLine()) != null) {
@@ -107,7 +105,6 @@ public class Worker implements Runnable {
                     // 为新测试清空数据集
                     retransmittedPacket.clear();
                     distinctEntries = 0;
-                    collisions = 0;
 
                     // 更新基本变量
                     senderIP = header.senderIp;
@@ -163,7 +160,6 @@ public class Worker implements Runnable {
                             retransmittedPacket.put(ack, (short) (value + 1));
                         } else {
                             retransmittedPacket.put(ack, (short) 2);
-                            collisions += 1;
                         }
                     } else {
                         filter.put(ack);

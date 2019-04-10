@@ -43,10 +43,4 @@ public class EvaluationResult {
     public float packetRetransmittedPerLossSender;
     // 以接收方数据衡量的平均每次丢包所需要重传的数据包个数
     public float packetRetransmittedPerLossReceiver;
-
-    // 来自 iperf3 的测试结果
-    public double iperfThroughput;
-    public double iperfDuration;
-    public double iperfRetransmission;
-
 }

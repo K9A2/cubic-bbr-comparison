@@ -2,10 +2,13 @@ package com.stormlin;
 
 import com.stormlin.util.TerminalLogger;
 import com.stormlin.util.Worker;
-import com.sun.xml.internal.ws.policy.privateutil.PolicyUtils;
+import org.apache.commons.io.FileUtils;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -14,9 +17,21 @@ import java.util.concurrent.TimeUnit;
 public class Main {
 
     private static final TerminalLogger logger = TerminalLogger.getLogger();
-//    private static Logger logger = LogManager.getLogger();
 
     public static void main(String[] args) {
+
+        // 创建或者清空日志文件夹
+        Path logPath = Paths.get("./log/");
+        try {
+            if (Files.exists(logPath)) {
+                FileUtils.cleanDirectory(new File(logPath.toUri()));
+            } else if (!new File(logPath.toUri()).mkdir()) {
+                logger.log("Unable to create log folder");
+                return;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         int cores = Runtime.getRuntime().availableProcessors();
         logger.log("number of cores: " + cores);
@@ -49,7 +64,6 @@ public class Main {
 
         ExecutorService executor = Executors.newFixedThreadPool(cores);
 
-//        String[] lossArray = new String[]{"0.1", "0.2", "0.4", "0.6", "0.8", "1", "3", "5"};
         for (String algorithm : algorithmArray) {
             for (String rtt : rttArray) {
                 for (String loss : lossArray) {
