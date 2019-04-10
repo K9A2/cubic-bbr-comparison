@@ -1,5 +1,8 @@
 package com.stormlin.util;
 
+import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnel;
+import com.google.common.hash.Funnels;
 import com.stormlin.entity.EvaluationResult;
 import com.stormlin.entity.ExtractedHeader;
 
@@ -56,7 +59,7 @@ public class Worker implements Runnable {
 
     private void analyze(String fileName, String role) {
 
-        HashMap<Long, Integer> dataPacket = new HashMap<>();
+        HashMap<Long, Short> retransmittedPacket = new HashMap<>();
 
         File file = new File(dataFileFolder + fileName);
 
@@ -86,6 +89,9 @@ public class Worker implements Runnable {
         String line;
         int count = 0;
         String resultKey = "";
+        BloomFilter filter = BloomFilter.create(Funnels.longFunnel(), 1024 * 1024, 0.00001);
+        int distinctEntries = 0;
+        int collisions = 0;
         try {
             // 按行读取文件
             while ((line = reader.readLine()) != null) {
@@ -94,10 +100,14 @@ public class Worker implements Runnable {
                 // 本行的发送方端口号与已知的任何一个端口号均不相同, 则认为是新一次测试的开始, 需要重新设定部分参数
                 if (!header.senderPort.equals(controlSocketPort) && !header.senderPort.equals(dataSocketPort) &&
                         !header.senderPort.equals(serverPort)) {
+                    // 为新测试创建新的布隆过滤器
+                    filter = BloomFilter.create(Funnels.longFunnel(), 1024 * 1024, 0.00001);
                     // 解析上一个测试的数据包发送记录
-                    parsePacketHistory(dataPacket, resultKey, role);
+                    parsePacketHistory(retransmittedPacket, resultKey, role, distinctEntries);
                     // 为新测试清空数据集
-                    dataPacket.clear();
+                    retransmittedPacket.clear();
+                    distinctEntries = 0;
+                    collisions = 0;
 
                     // 更新基本变量
                     senderIP = header.senderIp;
@@ -130,25 +140,39 @@ public class Worker implements Runnable {
                     byte index = (byte) header.seq.indexOf(":");
                     if (index != -1) {
                         long seq = Long.parseLong(header.seq.substring(0, index));
-                        if (dataPacket.containsKey(seq)) {
-                            dataPacket.put(seq, dataPacket.get(seq) + 1);
+                        if (filter.mightContain(seq)) {
+                            // 对于布隆过滤器报告可能存在的数据包其发送次数全部存入 HashMap
+                            Short value = retransmittedPacket.get(seq);
+                            if (value != null) {
+                                retransmittedPacket.put(seq, (short) (value + 1));
+                            } else {
+                                retransmittedPacket.put(seq, (short) 2);
+                            }
                         } else {
-                            dataPacket.put(seq, 1);
+                            filter.put(seq);
+                            distinctEntries += 1;
                         }
                     }
                 } else if (role.equals(Constant.ROLE_RECEIVER) && header.receiverIp.equals(senderIP) &&
                         header.receiverPort.equals(dataSocketPort)) {
                     // 这是一个 ack 包
                     long ack = Long.parseLong(header.seq);
-                    if (dataPacket.containsKey(ack)) {
-                        dataPacket.put(ack, dataPacket.get(ack) + 1);
+                    if (filter.mightContain(ack)) {
+                        Short value = retransmittedPacket.get(ack);
+                        if (value != null) {
+                            retransmittedPacket.put(ack, (short) (value + 1));
+                        } else {
+                            retransmittedPacket.put(ack, (short) 2);
+                            collisions += 1;
+                        }
                     } else {
-                        dataPacket.put(ack, 1);
+                        filter.put(ack);
+                        distinctEntries += 1;
                     }
                 }
             }
             // 解析最后一次测试的数据包发送记录
-            parsePacketHistory(dataPacket, resultKey, role);
+            parsePacketHistory(retransmittedPacket, resultKey, role, distinctEntries);
             // 最终关闭输入流, 释放相关资源
             inputStream.close();
         } catch (IOException e) {
@@ -161,7 +185,7 @@ public class Worker implements Runnable {
      *
      * @param dataPacket 数据包发送次数记录
      */
-    private void parsePacketHistory(HashMap<Long, Integer> dataPacket, String resultKey, String role) {
+    private void parsePacketHistory(HashMap<Long, Short> dataPacket, String resultKey, String role, int distinctEntries) {
         if (dataPacket.isEmpty() || resultKey.equals("")) {
             return;
         }
@@ -170,9 +194,9 @@ public class Worker implements Runnable {
             return;
         }
 
-        int payload;
-        int threshold;
-        int onWireSize;
+        short payload;
+        short threshold;
+        short onWireSize;
         if (role.equals(Constant.ROLE_SENDER)) {
             payload = Constant.DATA_PACKET_PAYLOAD;
             threshold = Constant.DATA_PACKET_LOSS_THRESHOLD;
@@ -182,15 +206,10 @@ public class Worker implements Runnable {
             threshold = Constant.ACK_LOSS_THRESHOLD;
             onWireSize = Constant.PACKET_OVERHEAD_ON_WIRE;
         }
+
         // 解析记录并保存到全局记录集合中
-        for (int value : dataPacket.values()) {
-            if (role.equals(Constant.ROLE_SENDER)) {
-                result.payloadSent += payload;
-                result.packetSent += 1;
-                result.onWireSentSender += onWireSize;
-            } else {
-                result.onWireSentReceiver += onWireSize;
-            }
+        for (short value : dataPacket.values()) {
+            // HashMap 中的每一个数据包都认为被是重传过的数据包
             if (value >= threshold) {
                 if (role.equals(Constant.ROLE_SENDER)) {
                     // 数据包被重传
@@ -207,17 +226,20 @@ public class Worker implements Runnable {
         }
 
         if (role.equals(Constant.ROLE_SENDER)) {
+            result.packetSent += distinctEntries;
+            result.payloadSent += payload * result.packetSent;
             result.packetTransmittedTotal = result.packetSent + result.packetRetransmitted;
             result.lossRatioSender = result.packetLossSender / result.packetSent;
             result.packetRetransmittedPerDataPacket = result.packetLossSender / result.packetSent;
             result.packetRetransmittedPerLossSender = result.packetRetransmitted / result.packetLossSender;
+            result.onWireSentSender += onWireSize * distinctEntries;
         } else {
+            result.onWireSentReceiver += onWireSize * distinctEntries;
             result.lossRatioReceiver = result.packetLossReceiver / result.packetSent;
             result.packetRetransmittedPerLossReceiver = result.packetRetransmitted / result.packetLossReceiver;
             result.onWireTotal = result.onWireSentReceiver + result.onWireRetransmittedSender +
                     result.onWireSentReceiver + result.onWireRetransmittedReceiver;
         }
-
     }
 
     /**

@@ -5,8 +5,8 @@ import java.text.DecimalFormat;
 public class Constant {
 
     public static final int DATA_PACKET_SIZE_ON_WIRE_IN_BYTE = 1514;
-    public static final int DATA_PACKET_PAYLOAD = 1448;
-    public static final int PACKET_OVERHEAD_ON_WIRE = 66;
+    public static final short DATA_PACKET_PAYLOAD = 1448;
+    public static final short PACKET_OVERHEAD_ON_WIRE = 66;
 
     public static final String DEFAULT_SERVER_PORT = "5201";
 
