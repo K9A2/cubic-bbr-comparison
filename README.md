@@ -1,15 +1,5 @@
 # README
 
-This is a comparative evaluation on the throughput and retransmission of CUBIC
-and BBR in the TCP layer/ON-WIRE.
+这是我们实验室用来分析 tcpdump 抓取的在不同 TCP 拥塞控制算法控制下的 iperf3 TCP 数据流的分析工具, 以比较这些 TCP 拥塞控制算法的性能.
 
-The evaluation is carried out as follows:
-- We use Mininet to set up the simulated network with topology specified in 
-  [full-topology.py](src/python/full-topology.py), which composed with dumbbell 
-  network with different RTT and loss rate. 
-- Then we user [iperf3](https://github.com/esnet/iperf) 
-  to start the evaluation between the sender and receiver. Before starting the
-  evaluation, we also get ready the tcpdump at both sides and set them to 
-  capture the TCP packets.
-- After the evaluation, we use the [tcpdump.py](src/python/tcpdump.py) to 
-  analyze the dump files as well as the JSON files provided by iperf3.
+本工具使用 Java 语言编写, 实现了根据 CPU 核心数进行并行分析的功能, 默认使用全部 CPU 核心. 为了提高分析效率, 分析函数中引入了 Google 实现的 BloomFilter 来快速滤出被重传的数据包, 然后在 HashMap 内记录这些被重传的数据包的发送次数. 最终, 利用这些统计信息生成被测 TCP 拥塞控制算法的性能分析报告, 并以日志的形式记录在 `./log/` 文件夹中.
